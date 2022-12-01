@@ -1,0 +1,6 @@
+uint8 state
+
+uint8 DISABLED=0
+uint8 ENABLE_REQUESTED=1
+uint8 ENABLE_SENT=2
+uint8 ENABLED=3
