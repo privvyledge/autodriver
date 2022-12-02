@@ -174,7 +174,7 @@ RUN sudo apt-get update -qq && sudo apt-get install -y -q \
 RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/raptor-dbw-ros.git
 
 ################################### Vehicle Interface stuff
-RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/raptor-dbw-ros.git
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/autodriver.git
 
 ################################### Setup vehicle simulation
 # Fix gazebo GPU issues by updating and upgrading gazebo to the latest stable release
