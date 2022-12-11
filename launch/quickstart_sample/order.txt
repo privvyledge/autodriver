@@ -1,0 +1,6 @@
+My map: launches tf and loads maps (point cloud, vector map, lanelet)
+My sensing: launches calibration files and sensors (use quanergy launch instead)
+My localization: setup tf, loads vehicle model, filters point clouds by downsampling, and ndt_matching
+My detection: launches euclidean cluster detection
+My mission planning: launches vel pose connect, waypoints, lane stuff
+My motion planning: launches vehicle socket/control (vehicle interface), obstacle avoidance, velocity set, pp or mpc, twist filter

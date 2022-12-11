@@ -1,0 +1,19 @@
+<launch>
+
+<!--  &lt;!&ndash; calibration file path &ndash;&gt;-->
+<!--  <arg name="velodyne_calib" default="$(find velodyne_pointcloud)/params/32db.yaml"/>-->
+<!--  <arg name="camera_calib" default="$(env HOME)/.autoware/data/calibration/camera_lidar_3d/prius/nic-150407.yml"/>-->
+
+  <!-- HDL-32e -->
+  <include file="$(find runtime_manager)/launch_files/velodyne_hdl32e.launch">
+    <arg name="calibration" value="$(arg velodyne_calib)"/>
+  </include>
+
+  <include file="$(find quanergy_client_ros)/launch/client.launch">
+    <arg name="host" value="192.168.50.63" />
+    <arg name="topic" value="points_raw" />
+    <arg name="frame" value="velodyne" />
+    <arg name="return" value="0" />
+  </include>
+
+</launch>

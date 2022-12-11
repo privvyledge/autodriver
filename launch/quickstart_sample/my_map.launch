@@ -1,0 +1,8 @@
+<launch>
+
+  <!-- TF -->
+  <include file="$(env HOME)/.autoware/data/tf/tf.launch"/>
+
+  <!-- Point Cloud -->
+  <node pkg="map_file" type="points_map_loader" name="points_map_loader" args="noupdate $(env HOME)/shared_dir/data/maps/caps_loop.pcd"/>
+</launch>

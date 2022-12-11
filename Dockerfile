@@ -9,16 +9,42 @@ ARG VERSION=master
 #FROM autoware/autoware:local-melodic
 
 # gpu
-#FROM autoware/autoware:latest-melodic
-#FROM autoware/autoware:local-melodic
+#FROM autoware/autoware:latest-melodic-cuda
+#FROM autoware/autoware:local-melodic-cuda
+#FROM $IMAGE_NAME:$TAG_PREFIX-$ROS_DISTRO-cuda
 FROM $IMAGE_NAME:$TAG_PREFIX-$ROS_DISTRO
 
 #################################### Set up "user" and environment variables
-USER autoware
-ENV USERNAME autoware
+ARG USER=autoware
+ENV USERNAME ${USER}
+ARG USER_ID=1000
+ARG GROUP_ID=15214
+
+# Add user to video and audio group
+RUN groupadd --gid $GROUP_ID $USERNAME && \
+        useradd --gid $GROUP_ID -m $USERNAME && \
+        echo "$USERNAME:$USERNAME" | chpasswd && \
+        usermod --shell /bin/bash $USERNAME && \
+        usermod -aG sudo,video,audio,dialout $USERNAME && \
+        usermod  --uid $USER_ID $USERNAME && \
+        echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/$USERNAME && \
+        chmod 0440 /etc/sudoers.d/$USERNAME
+
+USER ${USER}
 ENV BUILD_HOME=/home/$USERNAME
+
 ARG BUILD_HOME=$BUILD_HOME
 ARG WORKSPACE_NAME="catkin_ws"
+
+# Setup timezone
+ENV TZ=America/New_York
+RUN echo $TZ | sudo tee /etc/timezone
+RUN sudo dpkg-reconfigure --frontend noninteractive tzdata
+
+RUN sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
+# RUN echo $TZ > /etc/timezone
+RUN sudo apt-get clean && sudo apt-get update && sudo apt-get install -y locales
+RUN sudo locale-gen en_US.UTF-8
 
 ## Set up the shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -26,6 +52,13 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ################################### Fix bugs
 # Fix ROS GPG key expiration issue
 RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
+
+## Fix Nvidia GPG key expiration issue
+#RUN sudo rm /etc/apt/sources.list.d/cuda.list && sudo rm /etc/apt/sources.list.d/nvidia-ml.list && \
+#    sudo apt-key del 7fa2af80 && \
+#    mkdir -p /tmp/cuda_fix && cd /tmp/cuda_fix && \
+#    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-keyring_1.0-1_all.deb && \
+#    sudo dpkg -i cuda-keyring_1.0-1_all.deb
 
 ################################### Install general packages (joystick, etc.)
 # To fix any issues related to ROS apt repository key expiration, check (https://answers.ros.org/question/379190/apt-update-signatures-were-invalid-f42ed6fbab17c654/?answer=379194#post-id-379194)
@@ -52,6 +85,13 @@ RUN sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-autoware-msgs \
     ros-${ROS_DISTRO}-joy \
     ros-${ROS_DISTRO}-can-msgs \
+    ros-${ROS_DISTRO}-nmea-msgs \
+    ros-${ROS_DISTRO}-nmea-navsat-driver \
+    ros-${ROS_DISTRO}-sound-play \
+    ros-${ROS_DISTRO}-jsk-visualization \
+    ros-${ROS_DISTRO}-joy \
+    ros-${ROS_DISTRO}-can-msgs \
+    ros-${ROS_DISTRO}-um7 \
     python3-dev \
     python3-pip \
     python3-setuptools \
@@ -63,6 +103,34 @@ RUN sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \
     python-pip \
     python-wstool \
     python-setuptools \
+    python-rosinstall \
+    python-rosinstall-generator \
+    libnlopt-dev \
+    freeglut3-dev \
+    qtbase5-dev \
+    libqt5opengl5-dev \
+    libssh2-1-dev \
+    libarmadillo-dev \
+    libpcap-dev \
+    libgl1-mesa-dev \
+    python-bson \
+    python-bson-ext \
+    python-openssl \
+    python-pam \
+    python-twisted-bin \
+    python-twisted-core \
+    python-zope.interface \
+    python3-apt \
+    python3-pycurl \
+    python3-gi \
+    python-setuptools \
+    python-pip \
+    gir1.2-gtk-3.0 \
+    python3-aptdaemon.gtk3widgets \
+    linux-headers-generic \
+    software-properties-common \
+    ubuntu-drivers-common \
+    libgtk2-perl dkms \
     dirmngr \
     gnupg2 \
     lsb-release \
@@ -115,15 +183,6 @@ RUN python -m pip install --upgrade \
 RUN python3 -m pip install --upgrade \
     scikit-image
 
-# setup environment and timezone
-ENV TZ=America/New_York
-RUN echo $TZ | sudo tee /etc/timezone
-RUN sudo dpkg-reconfigure --frontend noninteractive tzdata
-
-RUN sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-# RUN echo $TZ > /etc/timezone
-RUN sudo apt-get clean && sudo apt-get update && sudo apt-get install -y locales
-RUN sudo locale-gen en_US.UTF-8
 
 
 ################################### Initialize directories
@@ -138,15 +197,13 @@ RUN mkdir -p $BUILD_HOME/drivers
 ################################### Setup LIDAR
 # Install Quanergy M8 LIDAR drivers
 RUN mkdir -p $BUILD_HOME/drivers/Quanergy && cd $BUILD_HOME/drivers/Quanergy && \
-    git clone https://github.com/QuanergySystems/quanergy_client.git && \
+    git clone https://github.com/privvyledge/quanergy_client.git && \
     cd quanergy_client && \
     mkdir build && cd build && \
     cmake .. && make && sudo make install
 
-# Install Quanergy LIDAR ROS package. Todo: pull from my package later
-RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/QuanergySystems/quanergy_client_ros.git
-# todo: remove the line below
-RUN cd $BUILD_HOME/$WORKSPACE_NAME && source /opt/ros/melodic/setup.bash && catkin_make
+# Install Quanergy LIDAR ROS package. Todo: might need to embed sensors into one ros package
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/quanergy_client_ros.git
 
 ################################### Setup GNSS. Todo
 
@@ -171,10 +228,19 @@ RUN sudo apt-get update -qq && sudo apt-get install -y -q \
     && sudo rm -rf /var/lib/apt/lists/*
 
 ################################### Setup New Eagle DBW stuff
-RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/raptor-dbw-ros.git
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/raptor-dbw-ros.git && \
+    git clone https://github.com/privvyledge/raptor-dbw-rospy.git
 
-################################### Vehicle Interface stuff
+################################### Vehicle Interface stuff (Autodriver package)
 RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/autodriver.git
+
+################################### Teleop stuff
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/ros-ackermann-teleoperation.git
+
+################################### Visualization stuff. Todo: include different RVIZ config files.
+# Todo: make my own RViz config files
+
+################################### Autoware Launch. Todo: for now use autodriver package
 
 ################################### Setup vehicle simulation
 # Fix gazebo GPU issues by updating and upgrading gazebo to the latest stable release
@@ -203,4 +269,16 @@ RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyled
 #    source /opt/ros/$ROS_DISTRO/setup.bash; \
 #    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release'
 
-# Done
+# Add variables to /home/${USERNAME}/.bashrc and source files
+RUN bash -c 'echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> $BUILD_HOME/.bashrc; \
+    echo "export $WORKSPACE_NAME=$BUILD_HOME/$WORKSPACE_NAME" >> $BUILD_HOME/.bashrc ; \
+    echo "export PYTHONPATH=$BUILD_HOME/ssdcaffe/python:$PYTHONPATH" >> $BUILD_HOME/.bashrc; \
+    echo "source $BUILD_HOME/$WORKSPACE_NAME/devel/setup.bash" >> $BUILD_HOME/.bashrc; \
+    echo "source /usr/local/share/citysim/setup.sh" >> $BUILD_HOME/.bashrc; \
+    echo "source $BUILD_HOME/Autoware/install/setup.bash" >> $BUILD_HOME/.bashrc; \
+    echo "export QT_X11_NO_MITSHM=1" >> /home/$USERNAME/.bashrc; \
+    source $BUILD_HOME/.bashrc'
+
+# Setup permissions
+USER root
+ENTRYPOINT ["/tmp/entrypoint.sh"]

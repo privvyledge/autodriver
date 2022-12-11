@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 See these for details:
     https://autowarefoundation.github.io/autoware-documentation/main/design/autoware-interfaces/components/vehicle-interface/
@@ -55,7 +56,10 @@ Todo:
     Publish to DbwStateMachine message [Done]
     Test all the above [Done]
     Create vehicle_state_report message [Done]
-    Compare steering angle, steering wheel angle, curvature and yaw rate
+    Compare steering angle, steering wheel angle, curvature and yaw rate [Done]
+    Output all speed conversions and find correct units for misc_report speed [Done]
+    Find what report message is updated when obstacles are near the car.
+    Analyze dbw rosbag data to see reverse message [Done]
     Publish to vehicle state report
     Create Vehicle State message
     Create Vehicle State Machine
@@ -148,12 +152,13 @@ class AutowareDbwInterfaceNode(object):
 
         # parameters.
         # ####### vehicle_info parameters
-        self.WHEELBASE = float(rospy.get_param('~wheelbase', 2.79))  # m.
+        self.WHEELBASE = float(rospy.get_param('~wheelbase', 3.08864))  # m.
 
         # ####### ne_raptor parameters
         self.ecu_build_num = int(rospy.get_param('~ecu_build_number', 0xFFFF))  #
-        self.front_axle_to_cog = float(rospy.get_param('~front_axle_to_cog', 1.228))  # m
-        self.rear_axle_to_cog = float(rospy.get_param('~rear_axle_to_cog', 1.5618))  # m
+        self.front_axle_to_cog = float(rospy.get_param('~front_axle_to_cog', 1.3744448))  # m
+        self.rear_axle_to_cog = float(rospy.get_param('~rear_axle_to_cog', 1.7141952))  # m
+        self.yaw_moment_of_inertia = float(rospy.get_param('~yaw_moment_of_inertia', 4271.217627996))  # kg.m^2
         self.steer_to_tire_ratio = float(
             rospy.get_param('~steer_to_tire_ratio', 15.667))  # # 470 degrees on steering wheel ~= 30 degrees on tire
         # get maximum steering wheel angle in degrees and convert to radians
@@ -209,7 +214,6 @@ class AutowareDbwInterfaceNode(object):
 
         # parameters. mine.
         self.odom_frame_id = rospy.get_param('~odom_frame_id', "odom")
-        # todo: check autoware /vehicle_cmd frame_id
         self.vehicle_status_frame_id = rospy.get_param('~vehicle_frame_id', 'base_link')  # base_link or rear_axle
         self.publish_odom_tf = rospy.get_param('~publish_odom_tf', True)  # Recommended: False. Localization node can fuse and publish better odom. Todo: set to False
         self.vehicle_odom_publish_rate = rospy.get_param('~odom_publish_rate', 50)  # Hz. Might use just for odom_tf
@@ -616,7 +620,6 @@ class AutowareDbwInterfaceNode(object):
         desired_yaw_rate = self.autonomy_data["twist_cmd"].twist.angular.z  # rads/s
         # convert yaw rate from twist_cmd to steering wheel angle
         steering_wheel_cmd_from_yaw_rate = self.yaw_rate_to_steering_wheel_angle(desired_yaw_rate, velocity_checked)
-        # todo: (/test/raptor) compare yaw_rate steering wheel angle, curvature steering wheel angle and steer2steeringWheelAngle
         self.accel_cmd.speed_cmd = velocity_checked
         # todo: (/test/raptor) test raptor by sending one steer control mode and sending the other value
         self.steer_cmd.vehicle_curvature_cmd = desired_curvature
@@ -705,7 +708,6 @@ class AutowareDbwInterfaceNode(object):
 
     def dbw_state(self):
         # todo: (/test/raptor)
-        # todo: compare to self.dbw_state_machine.enabled()
         # Check if DBW is enabled
         report_state = False  # check dbw reports for status
         dbw_enabled = False  # check enable message for status
@@ -796,12 +798,11 @@ class AutowareDbwInterfaceNode(object):
         # Todo: note that calculating odometry here slows down the callback. Might need to implement in a separate thread
         msg_time, msg_frame_id = self.extract_header_from_msg(msg)
         fuel_level = float(msg.drive_by_wire_enabled)  # %. Todo: add to state report for state machine
-        self.drive_by_wire_enabled = msg.drive_by_wire_enabled  # bool. Todo: use to check DBW state
-        vehicle_speed_kmph = float(msg.vehicle_speed)  # km/h. Todo: output and compare to speedometer while driving.
-        # todo: (test/raptor) check if vehicle_speed is negative in reverse
+        self.drive_by_wire_enabled = msg.drive_by_wire_enabled  # bool.
+        vehicle_speed = float(msg.vehicle_speed)  # m/s. Note that documentation says km/h
         # todo: (test/raptor)see if it takes negative and send negative if in reverse
         # todo: convert to m/s and compare to localization of results from wheel speed or LIDAR
-        vehicle_speed = vehicle_speed_kmph * self.KMPH_TO_MS * self.travel_direction  # m/s. todo: validate
+        vehicle_speed_kmph = vehicle_speed * self.MS_TO_KMPH * self.travel_direction  # km/h. Todo: compare to speedometer while driving
         software_build_number = int(msg.software_build_number)
         general_actuator_fault = msg.general_actuator_fault  # bool
         self.by_wire_ready = msg.by_wire_ready  # bool
@@ -820,18 +821,14 @@ class AutowareDbwInterfaceNode(object):
         self.dbw_state_machine.dbw_feedback(dbw_feedback)
         self.publish_dbw_state_machine_cmd()
 
-        # Todo: fix character encoding from copied text below
         '''
            * Input velocity is (assumed to be) measured at the rear axle, but we're
            * producing a velocity at the center of gravity.
            * Lateral velocity increases linearly from 0 at the rear axle to the maximum
-           * at the front axle, where it is tan(δ)*v_lon.
+           * at the front axle, where it is tan(delta)*v_lon.
         '''
-
-        # Use Odom, VehicleStatus and my custom VehicleKinematics State message
         prev_speed = 0.0
 
-        # todo: could get from Odom or use my message to fuse both
         delta = self.vehicle_feedback_status.angle
         # delta = self.vehicle_kinematic_state.front_wheel_angle
         if self.seen_misc_rpt and self.seen_wheel_speed_rpt:
@@ -901,6 +898,7 @@ class AutowareDbwInterfaceNode(object):
         self.vehicle_kinematic_state.header.stamp = msg_time
 
         if self.seen_steering_rpt and self.seen_wheel_speed_rpt:
+            # todo: handle division by zero error or check if dT=0.0
             self.vehicle_kinematic_state.longitudinal_acceleration = (vehicle_speed - prev_speed) / dT  # m/s^2
             self.vehicle_kinematic_state.time_change = rospy.Duration(dT)
 
@@ -911,16 +909,6 @@ class AutowareDbwInterfaceNode(object):
 
             # update position (x, y), yaw
             self.kinematic_bicycle_model(dT)
-
-            '''
-            orientation = self.vehicle_odom.pose.pose.orientation
-        try:
-            quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
-        except AttributeError:
-            # to address bug where orientation changes type to numpy.ndarray when accessed in python 2
-            orientation = Quaternion(*orientation)
-            quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
-            '''
 
             # publish on change, i.e new message like this. Todo: catch ROSException error due to publisher being shutdown on Ctrl-C.
             if self.autoware_pub_mode.lower() == 'change':
@@ -1002,7 +990,6 @@ class AutowareDbwInterfaceNode(object):
 
     def steering_2_report_callback(self, msg):
         msg_time, msg_frame_id = self.extract_header_from_msg(msg)
-        # todo: convert steering angle to curvature and compare results
         vehicle_curvature_actual = float(msg.vehicle_curvature_actual)  # units are 1/m
         steering_angle = self.curvature_to_steering_angle(vehicle_curvature_actual)  # todo: test and compare in my state message
         max_torque_driver = float(msg.max_torque_driver)  # %-Torque
@@ -1047,22 +1034,10 @@ class AutowareDbwInterfaceNode(object):
         self.vehicle_kinematic_state.steering_wheel_angle_deg = steering_wheel_angle_deg
 
         self.seen_steering_rpt = True
-        # todo: determine if I should modify the time here. Causes inconsistent_time issues in misc_report, might need to update odometry here as well.
         # Note: steering alone shouldn't cause time update cause Odom=0 if velocity=0 regardless of steering angle
         #self.vehicle_feedback_status.header.stamp = msg_time
         #self.vehicle_odom.header.stamp = msg_time
         #self.vehicle_kinematic_state.header.stamp = msg_time
-
-        # if self.autoware_pub_mode.lower() == 'change':
-        #     # todo: test but I suspect should be commented out so as not to mess with the timestamps
-        #     self.vehicle_status_pub.publish(self.vehicle_feedback_status)
-
-        # self.steering_control_mode = control_type
-        # if self.steering_control_mode == ActuatorControlMode.closed_loop_actuator:
-        #     self.steering_angle = steering_angle
-        #     # todo: compare output to the last 2 outputs of "/vehicle/joints_states", i.e steer_fl, steer_fr
-        # rospy.loginfo("Steering wheel angle: {}, steering angle in degrees: {} \n".format(steering_wheel_angle,
-        #
 
     def wheel_speed_report_callback(self, msg):
         # todo: use this and wheel_position_to_estimate speed and for kinematics. See AckermannRos implementation.
@@ -1133,37 +1108,6 @@ class AutowareDbwInterfaceNode(object):
                 self.vehicle_feedback_status.header.stamp = rospy.Time.now()
                 # self.vehicle_feedback_status.header.frame_id = 'base_link'
                 self.vehicle_status_pub.publish(self.vehicle_feedback_status)
-
-        # vehicle_status = VehicleStatus()
-        #
-        # # drive/steeringmode
-        # vehicle_status.drivemode = self.drivemode
-        # vehicle_status.steeringmode = self.drivemode
-        #
-        # # speed [km/h]
-        # vehicle_status.speed = self.speed
-        #
-        # # drive/brake pedal
-        # vehicle_status.drivepedal = self.drive_pedal
-        # vehicle_status.brakepedal = self.brake_pedal
-        #
-        # # steering_angle [rad]
-        # vehicle_status.angle = self.steering_angle  # not updated for now
-        #
-        # # gearshift.
-        # # gear_status = self.dbw_to_autoware_gear.get(self.gear_shift, AutowareGear.NONE)
-        # gear_status = self.dbw_to_autoware_gear.get(self.gear_shift)
-        # if gear_status is None:
-        #     # default case, i.e error/invalid signal
-        #     gear_status = AutowareGear.NONE
-        #     rospy.loginfo("Received invalid gear value from NE Raptor DBW.")
-        # vehicle_status.current_gear.gear = gear_status
-        #
-        # # lamp
-        # vehicle_status.lamp = self.lamp  # blinkers/turnSignals
-        #
-        # # light
-        # vehicle_status.light = self.light  # headlight
 
     def vehicle_odometry_publisher(self, event=None):
         """
@@ -1237,21 +1181,6 @@ class AutowareDbwInterfaceNode(object):
 
         # turn signal
         lamp_cmd = msg.lamp_cmd
-        # if msg.lamp_cmd.l == 0 and msg.lamp_cmd.r == 0:
-        #     # no blinker on
-        #     lamp_cmd = TurnSignal.NONE
-        # elif msg.lamp_cmd.l == 1 and msg.lamp_cmd.r == 0:
-        #     # left blinker
-        #     lamp_cmd = TurnSignal.LEFT
-        # elif msg.lamp_cmd.l == 0 and msg.lamp_cmd.r == 1:
-        #     # right blinker
-        #     lamp_cmd = TurnSignal.RIGHT
-        # elif msg.lamp_cmd.l == 1 and msg.lamp_cmd.r == 1:
-        #     # hazard lights
-        #     lamp_cmd = TurnSignal.HAZARDS
-        # else:
-        #     # invalid command
-        #     lamp_cmd = TurnSignal.SNA
 
         # twist command
         vehicle_cmd_msg_twist_cmd = msg.twist_cmd  # could use the twist callback data here
@@ -1261,30 +1190,6 @@ class AutowareDbwInterfaceNode(object):
         linear_velocity = vehicle_cmd_msg_ctrl_cmd.linear_velocity  # desired forward speed (m/s).
         linear_acceleration = vehicle_cmd_msg_ctrl_cmd.linear_acceleration  # desired acceleration (m/s^2)
         steering_angle = vehicle_cmd_msg_ctrl_cmd.steering_angle  # rads [-0.5, 0.5]
-        # steering_wheel_angle = self.steering_angle_to_steering_wheel_angle(
-        #         steering_angle)
-        # curvature = self.steering_angle_to_curvature(steering_angle)
-
-        # if vehicle_cmd_msg_brake_cmd > self.MAX_BRAKE_ACTUATION:
-        #     rospy.loginfo("Brake command exceeds max. Saturating...")
-        #     brake_cmd = self.MAX_BRAKE_ACTUATION
-        # else:
-        #     brake_cmd = vehicle_cmd_msg_brake_cmd
-        # if vehicle_cmd_msg_accel_cmd > self.MAX_ACCELERATION_ACTUATION:
-        #     rospy.loginfo("Accelerator pedal command exceeds max. Saturating...")
-        #     accel_cmd = self.MAX_ACCELERATION_ACTUATION
-        # else:
-        #     accel_cmd = vehicle_cmd_msg_accel_cmd
-        # if linear_velocity > self.MAX_SPEED_MS:
-        #     rospy.loginfo("Speed command exceeds max. Saturating...")
-        #     linear_velocity = self.MAX_SPEED_MS
-        # if linear_acceleration > self.MAX_ACCELERATION:
-        #     linear_acceleration = self.MAX_ACCELERATION
-        # if steering_wheel_angle > self.MAX_STEERING_WHEEL_ANGLE:
-        #     rospy.loginfo("Steering wheel angle command exceeds max. Saturating...")
-        #     steering_wheel_angle = self.MAX_STEERING_WHEEL_ANGLE
-
-        # linear_velocity = linear_velocity * int(not emergency_cmd)
 
         self.autonomy_data = {'stamp': vehicle_cmd_msg_time,  # or vehicle_cmd_msg_time
                               'abs_speed': fabs(linear_velocity),  # m/s
@@ -1328,10 +1233,10 @@ class AutowareDbwInterfaceNode(object):
         # output is in radians
         # method 1
         # steering_angle = self.steering_wheel_angle_to_steering_angle(steering_wheel_angle)
-        # curvature = tan(steering_angle) / self.WHEELBASE
+        # curvature = self.steering_angle_to_curvature(steering_angle)
 
         # method 2: shortcut
-        curvature = tan(steering_wheel_angle / self.steer_to_tire_ratio) / self.self.WHEELBASE
+        curvature = tan(steering_wheel_angle / self.steer_to_tire_ratio) / self.WHEELBASE
         return curvature
 
     def steering_wheel_angle_to_yaw_rate(self, steering_wheel_angle, current_speed):
@@ -1350,7 +1255,7 @@ class AutowareDbwInterfaceNode(object):
         # steering_wheel_angle = self.steering_angle_to_steering_wheel_angle(steering_angle)
 
         # method 2 (curv -> SWA)
-        steering_wheel_angle = atan(curvature * self.WHEELBASE) / self.steer_to_tire_ratio
+        steering_wheel_angle = atan(curvature * self.WHEELBASE) * self.steer_to_tire_ratio
         return steering_wheel_angle
 
     def steering_angle_to_steering_wheel_angle(self, desired_steering_angle):
@@ -1377,8 +1282,12 @@ class AutowareDbwInterfaceNode(object):
         return steering_wheel_angle
 
     def yaw_rate_to_steering_angle(self, desired_yaw_rate, current_speed):
-        # todo: see twist2ackermann
-        return None
+        if desired_yaw_rate == 0 or current_speed == 0:
+            return 0
+
+        radius = current_speed / desired_yaw_rate
+        steering_angle = atan(self.WHEELBASE / radius)
+        return steering_angle
 
     def extract_header_from_msg(self, msg):
         msg_time = msg.header.stamp
@@ -1424,20 +1333,19 @@ class AutowareDbwInterfaceNode(object):
                 # python2 does not have math.tau
                 yaw += (math.pi * 2)
 
-        # Todo: fix character encoding from copied text below
         '''
-           * δ: tire angle (relative to car's main axis)
-           * φ: heading/yaw
-           * β: direction of movement at point of reference (relative to car's main axis)
+           * delta: tire angle (relative to car's main axis)
+           * psi: heading/yaw
+           * beta: direction of movement at point of reference (relative to car's main axis)
            * m_rear_axle_to_cog: distance of point of reference to rear axle
            * m_front_axle_to_cog: distance of point of reference to front axle
            * wheelbase: m_rear_axle_to_cog + m_front_axle_to_cog
            * x, y, v are at the point of reference
-           * x' = v cos(φ + β)
-           * y' = v sin(φ + β)
-           * φ' = (cos(β)tan(δ)) / wheelbase
+           * x' = v cos(psi + beta)
+           * y' = v sin(psi + beta)
+           * psi' = (cos(beta)tan(delta)) / wheelbase
            * v' = a
-           * β = arctan((m_rear_axle_to_cog*tan(δ))/wheelbase)
+           * beta = arctan((m_rear_axle_to_cog*tan(delta))/wheelbase)
            */
         '''
 
@@ -1524,7 +1432,7 @@ def main(args):
         # run the main functions here
         # autonomous_speed_based_instance.run()
         rospy.spin()  # only necessary if not publishing (i.e. subscribing only)
-    except (rospy.ROSInterruptException, ROSException, KeyboardInterrupt) as e:
+    except (rospy.ROSInterruptException, rospy.ROSException, KeyboardInterrupt) as e:
         # this exception block most likely won't be called since there is a shutdown method in the class that will
         # override this and shutdown however is needed but is here just in case.
         rospy.loginfo('Encountered {}. Shutting down.'.format(e))
