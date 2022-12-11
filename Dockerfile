@@ -235,6 +235,10 @@ RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyled
 ################################### Teleop stuff
 RUN cd $BUILD_HOME/$WORKSPACE_NAME/src && git clone https://github.com/privvyledge/ros-ackermann-teleoperation.git
 
+################################### Mark python scripts as executable
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src/autodriver/nodes && chmod +x ./*
+RUN cd $BUILD_HOME/$WORKSPACE_NAME/src/raptor-dbw-rospy/nodes && chmod +x ./*
+
 ################################### Visualization stuff. Todo: include different RVIZ config files.
 # Todo: make my own RViz config files
 

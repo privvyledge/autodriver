@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Joystick demo -->
+<arg name="ignore" default="false" />
+<arg name="enable" default="true" />
+<arg name="count" default="true" />
+<arg name="svel" default="280.0" />
+<node ns="joystick" pkg="raptor_dbw_joystick_speed_demo" type="joystick_speed_demo" name="joystick_demo" output="screen">
+<param name="ignore" value="$(arg ignore)" />
+  <!-- Ignore driver overrides -->
+  <param name="enable" value="$(arg enable)" />
+  <!-- Enable buttons -->
+  <param name="count" value="$(arg count)" />
+  <!-- Watchdog counter -->
+  <param name="svel" value="$(arg svel)" />
+  <!-- Steering velocity limit -->
+</node>
+
+<!-- Joystick driver -->
+<arg name="dev" default="/dev/input/js0" />
+<node pkg="joy" type="joy_node" name="joy_node" output="screen">
+<param name="dev" value="$(arg dev)" />
+<param name="deadzone" value="0.01" />
+<param name="autorepeat_rate" value="50.0" />
+</node>
+
+</launch>

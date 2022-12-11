@@ -346,55 +346,55 @@ class AutowareDbwInterfaceNode(object):
         # subscribers (from Raptor DBW)
         subscriber_queue_size = 20
         self.dbw_enable_status = False
-        self.accelerator_pedal_report_sub = rospy.Subscriber("/vehicle/accelerator_pedal_report",
+        self.accelerator_pedal_report_sub = rospy.Subscriber("accelerator_pedal_report",
                                                              AcceleratorPedalReport,
                                                              self.accelerator_pedal_report_callback,
                                                              queue_size=subscriber_queue_size)
-        # self.brake_2_report_sub = rospy.Subscriber("/vehicle/brake_2_report",
+        # self.brake_2_report_sub = rospy.Subscriber("brake_2_report",
         #                                            Brake2Report,
         #                                            self.brake_2_report_callback,
         #                                            queue_size=subscriber_queue_size)
-        self.brake_report_sub = rospy.Subscriber("/vehicle/brake_report",
+        self.brake_report_sub = rospy.Subscriber("brake_report",
                                                  BrakeReport,
                                                  self.brake_report_callback,
                                                  queue_size=subscriber_queue_size)
-        self.gear_report_sub = rospy.Subscriber("/vehicle/gear_report",
+        self.gear_report_sub = rospy.Subscriber("gear_report",
                                                 GearReport,
                                                 self.gear_report_callback,
                                                 queue_size=subscriber_queue_size)
-        # self.global_enable_cmd_sub = rospy.Subscriber("/vehicle/global_enable_cmd",
+        # self.global_enable_cmd_sub = rospy.Subscriber("global_enable_cmd",
         #                                               GlobalEnableCmd,
         #                                               self.global_enable_callback,
         #                                               queue_size=subscriber_queue_size)
-        self.steering_2_report_sub = rospy.Subscriber("/vehicle/steering_2_report",
+        self.steering_2_report_sub = rospy.Subscriber("steering_2_report",
                                                       Steering2Report,
                                                       self.steering_2_report_callback,
                                                       queue_size=subscriber_queue_size)
-        self.steering_report_sub = rospy.Subscriber("/vehicle/steering_report", SteeringReport,
+        self.steering_report_sub = rospy.Subscriber("steering_report", SteeringReport,
                                                     self.steering_report_callback, queue_size=subscriber_queue_size)
-        # self.wheel_position_report_sub = rospy.Subscriber("/vehicle/wheel_position_report", WheelPositionReport,
+        # self.wheel_position_report_sub = rospy.Subscriber("wheel_position_report", WheelPositionReport,
         #                                                   self.wheel_position_report_callback,
         #                                                   queue_size=subscriber_queue_size)
-        self.wheel_speed_report_sub = rospy.Subscriber("/vehicle/wheel_speed_report", WheelSpeedReport,
+        self.wheel_speed_report_sub = rospy.Subscriber("wheel_speed_report", WheelSpeedReport,
                                                        self.wheel_speed_report_callback,
                                                        queue_size=subscriber_queue_size)
-        # self.driver_input_report_sub = rospy.Subscriber("/vehicle/driver_input_report", DriverInputReport,
+        # self.driver_input_report_sub = rospy.Subscriber("driver_input_report", DriverInputReport,
         #                                                 self.driver_input_report_callback,
         #                                                 queue_size=subscriber_queue_size)
-        # self.fault_actions_report_sub = rospy.Subscriber("/vehicle/fault_actions_report", FaultActionsReport,
+        # self.fault_actions_report_sub = rospy.Subscriber("fault_actions_report", FaultActionsReport,
         #                                                  self.fault_actions_report_callback,
         #                                                  queue_size=subscriber_queue_size)
-        # self.low_voltage_system_report_sub = rospy.Subscriber("/vehicle/low_voltage_system_report",
+        # self.low_voltage_system_report_sub = rospy.Subscriber("low_voltage_system_report",
         #                                                       LowVoltageSystemReport,
         #                                                       self.low_voltage_system_report_callback,
         #                                                       queue_size=subscriber_queue_size)
-        self.misc_report_sub = rospy.Subscriber("/vehicle/misc_report", MiscReport,
+        self.misc_report_sub = rospy.Subscriber("misc_report", MiscReport,
                                                 self.misc_report_callback,
                                                 queue_size=subscriber_queue_size)
-        # self.tire_pressure_report_sub = rospy.Subscriber("/vehicle/tire_pressure_report", TirePressureReport,
+        # self.tire_pressure_report_sub = rospy.Subscriber("tire_pressure_report", TirePressureReport,
         #                                                  self.tire_pressure_report_callback,
         #                                                  queue_size=subscriber_queue_size)
-        self.dbw_enable_sub = rospy.Subscriber("/vehicle/dbw_enabled", Bool, self.dbw_enable_callback,
+        self.dbw_enable_sub = rospy.Subscriber("dbw_enabled", Bool, self.dbw_enable_callback,
                                                queue_size=subscriber_queue_size)
 
         # subscribers (from Autoware).
@@ -407,17 +407,17 @@ class AutowareDbwInterfaceNode(object):
 
         # publishers (to Raptor DBW)
         dbw_publisher_queue_size = 1
-        self.accel_cmd_pub = rospy.Publisher("/vehicle/accelerator_pedal_cmd", AcceleratorPedalCmd,
+        self.accel_cmd_pub = rospy.Publisher("accelerator_pedal_cmd", AcceleratorPedalCmd,
                                              queue_size=dbw_publisher_queue_size)
-        self.brake_cmd_pub = rospy.Publisher("/vehicle/brake_cmd", BrakePedalCmd, queue_size=dbw_publisher_queue_size)
-        self.misc_cmd_pub = rospy.Publisher("/vehicle/misc_cmd", MiscCmd, queue_size=dbw_publisher_queue_size)
-        self.steering_cmd_pub = rospy.Publisher("/vehicle/steering_cmd", SteeringCmd, queue_size=dbw_publisher_queue_size)
-        self.global_enable_cmd_pub = rospy.Publisher("/vehicle/global_enable_cmd", GlobalEnableCmd,
+        self.brake_cmd_pub = rospy.Publisher("brake_cmd", BrakePedalCmd, queue_size=dbw_publisher_queue_size)
+        self.misc_cmd_pub = rospy.Publisher("misc_cmd", MiscCmd, queue_size=dbw_publisher_queue_size)
+        self.steering_cmd_pub = rospy.Publisher("steering_cmd", SteeringCmd, queue_size=dbw_publisher_queue_size)
+        self.global_enable_cmd_pub = rospy.Publisher("global_enable_cmd", GlobalEnableCmd,
                                                      queue_size=dbw_publisher_queue_size)
         self.gear_cmd_pub = rospy.Publisher("gear_cmd", GearCmd, queue_size=dbw_publisher_queue_size)
-        self.dbw_enable_cmd_pub = rospy.Publisher("/vehicle/enable", Empty, queue_size=dbw_publisher_queue_size)
-        self.dbw_disable_cmd_pub = rospy.Publisher("/vehicle/disable", Empty, queue_size=dbw_publisher_queue_size)
-        self.dbw_state_machine_pub = rospy.Publisher("/vehicle/dbw_state_machine", DbwStateMachineMsg,
+        self.dbw_enable_cmd_pub = rospy.Publisher("enable", Empty, queue_size=dbw_publisher_queue_size)
+        self.dbw_disable_cmd_pub = rospy.Publisher("disable", Empty, queue_size=dbw_publisher_queue_size)
+        self.dbw_state_machine_pub = rospy.Publisher("dbw_state_machine", DbwStateMachineMsg,
                                                      queue_size=dbw_publisher_queue_size)
 
         # publishers (to Autoware)
@@ -711,10 +711,10 @@ class AutowareDbwInterfaceNode(object):
         # Check if DBW is enabled
         report_state = False  # check dbw reports for status
         dbw_enabled = False  # check enable message for status
-        # From misc_report ("/vehicle/misc_report")
+        # From misc_report ("misc_report")
         if self.by_wire_ready and self.drive_by_wire_enabled:
             report_state = True
-        # From enable message ("/vehicle/dbw_enabled")
+        # From enable message ("dbw_enabled")
         if self.dbw_enable_status:
             dbw_enabled = True
         return report_state and dbw_enabled
@@ -1012,7 +1012,7 @@ class AutowareDbwInterfaceNode(object):
         steering_wheel_angle = float(msg.steering_wheel_angle)  # rads (but documentation says degrees)
         steering_wheel_angle_deg = math.degrees(steering_wheel_angle)
         steering_angle = self.steering_wheel_angle_to_steering_angle(steering_wheel_angle)  # f_wheel_angle_rad
-        # todo: compare output to the last 2 outputs of "/vehicle/joints_states", i.e steer_fl, steer_fr
+        # todo: compare output to the last 2 outputs of "joints_states", i.e steer_fl, steer_fr
         steering_wheel_angle_cmd = float(msg.steering_wheel_angle_cmd)  # rads (degrees in documentation)
         steering_wheel_torque = float(msg.steering_wheel_angle)  # 0-100%
 
