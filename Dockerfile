@@ -21,9 +21,7 @@ ARG USER_ID=1000
 ARG GROUP_ID=15214
 
 # Add user to video and audio group
-RUN groupadd --gid $GROUP_ID $USERNAME && \
-        useradd --gid $GROUP_ID -m $USERNAME && \
-        echo "$USERNAME:$USERNAME" | chpasswd && \
+RUN echo "$USERNAME:$USERNAME" | chpasswd && \
         usermod --shell /bin/bash $USERNAME && \
         usermod -aG sudo,video,audio,dialout $USERNAME && \
         usermod  --uid $USER_ID $USERNAME && \
@@ -35,16 +33,6 @@ ENV BUILD_HOME=/home/$USERNAME
 
 ARG BUILD_HOME=$BUILD_HOME
 ARG WORKSPACE_NAME="catkin_ws"
-
-# Setup timezone
-ENV TZ=America/New_York
-RUN echo $TZ | sudo tee /etc/timezone
-RUN sudo dpkg-reconfigure --frontend noninteractive tzdata
-
-RUN sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-# RUN echo $TZ > /etc/timezone
-RUN sudo apt-get clean && sudo apt-get update && sudo apt-get install -y locales
-RUN sudo locale-gen en_US.UTF-8
 
 ## Set up the shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -59,6 +47,16 @@ RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sud
 #    mkdir -p /tmp/cuda_fix && cd /tmp/cuda_fix && \
 #    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-keyring_1.0-1_all.deb && \
 #    sudo dpkg -i cuda-keyring_1.0-1_all.deb
+
+# Setup timezone
+ENV TZ=America/New_York
+RUN echo $TZ | sudo tee /etc/timezone
+RUN sudo dpkg-reconfigure --frontend noninteractive tzdata
+
+RUN sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
+# RUN echo $TZ > /etc/timezone
+RUN sudo apt-get clean && sudo apt-get update && sudo apt-get install -y locales
+RUN sudo locale-gen en_US.UTF-8
 
 ################################### Install general packages (joystick, etc.)
 # To fix any issues related to ROS apt repository key expiration, check (https://answers.ros.org/question/379190/apt-update-signatures-were-invalid-f42ed6fbab17c654/?answer=379194#post-id-379194)
