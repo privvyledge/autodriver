@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="wheelbase" default="500000" />
+
+    <node ns="vehicle" pkg="autodriver" type="autoware_dbw_interface.py" name="vehicle_interface_node" output="screen">
+<!--          <param name="ignore" value="$(arg ignore)" />-->
+
+    </node>
+</launch>
